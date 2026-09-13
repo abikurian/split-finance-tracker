@@ -1,32 +1,57 @@
-# React + TypeScript + Vite
+# SpendStudent 💸
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A robust, multi-device personal finance tracker designed to help students manage expenses, track savings, and split costs. Built with a mobile-first Progressive Web App (PWA) approach, SpendStudent bridges the gap between offline-capable local storage and real-time cloud synchronization.
 
-Currently, two official plugins are available:
+## ✨ Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+* **Multi-Device Cloud Sync:** Two-way data synchronization using Supabase as the master source of truth, ensuring your phone and laptop always reflect the exact same ledger.
+* **Local-First Architecture:** Powered by Dexie.js (IndexedDB) for blazing-fast load times and resilient offline capabilities.
+* **Mobile-Optimized UX:** A clean, responsive interface tailored for on-the-go financial tracking without redundant toggles.
+* **Fluid Animations:** Custom loading guards, splash screens, and micro-interactions built with Framer Motion and specialized UI libraries.
+* **Enterprise-Grade Security:** Strict Row Level Security (RLS) policies in PostgreSQL ensure your financial data is completely isolated and secure.
 
-## React Compiler
+## 🛠 Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+* **Frontend:** React, Vite, Tailwind CSS, Framer Motion
+* **Local Database:** Dexie.js
+* **Cloud Database & Auth:** Supabase (PostgreSQL)
+* **Deployment & CI/CD:** Vercel
 
-## Expanding the Oxlint configuration
+## 🚀 Getting Started
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+### Prerequisites
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+* Node.js (v18 or higher)
+* A [Supabase](https://supabase.com/) account
+* A [Vercel](https://vercel.com/) account
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/abikurian/split-finance-tracker.git](https://github.com/abikurian/split-finance-tracker.git)
+   cd split-finance-tracker
+Install dependencies:
+
+Bash
+npm install
+Configure Environment Variables:
+Create a .env file in the root directory and add your Supabase credentials:
+
+Code snippet
+VITE_SUPABASE_URL=[https://your-project-url.supabase.co](https://your-project-url.supabase.co)
+VITE_SUPABASE_ANON_KEY=your-anon-key
+Initialize the Cloud Database:
+Open your Supabase project's SQL Editor and execute the schema script to create the accounts, categories, transactions, people, and friends tables. Ensure Row Level Security (RLS) is enabled for all tables so multi-device sync functions correctly.
+
+Start the development server:
+
+Bash
+npm run dev
+🏗 Deployment
+This project is configured for seamless deployment on Vercel. Pushing to the main branch will automatically trigger a new production build. Ensure your Vercel project's Environment Variables match your local .env configuration.
+
+👨‍💻 Author
+Abi Kurian Varghese
+
+GitHub: @abikurian
