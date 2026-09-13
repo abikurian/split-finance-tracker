@@ -33,21 +33,24 @@ A robust, multi-device personal finance tracker designed to help students manage
    cd split-finance-tracker
 Install dependencies:
 
-Bash
+ ```bash
 npm install
 Configure Environment Variables:
 Create a .env file in the root directory and add your Supabase credentials:
-
+```
 Code snippet
+ ```bash
 VITE_SUPABASE_URL=[https://your-project-url.supabase.co](https://your-project-url.supabase.co)
 VITE_SUPABASE_ANON_KEY=your-anon-key
+```
 Initialize the Cloud Database:
 Open your Supabase project's SQL Editor and execute the schema script to create the accounts, categories, transactions, people, and friends tables. Ensure Row Level Security (RLS) is enabled for all tables so multi-device sync functions correctly.
 
 Start the development server:
 
-Bash
+ ```bash
 npm run dev
+```
 🏗 Deployment
 This project is configured for seamless deployment on Vercel. Pushing to the main branch will automatically trigger a new production build. Ensure your Vercel project's Environment Variables match your local .env configuration.
 
