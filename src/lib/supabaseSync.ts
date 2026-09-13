@@ -119,17 +119,12 @@ export async function syncFromSupabase(userId: string): Promise<void> {
       deletedAt: row.deleted_at || row.deletedAt || null,
     }));
 
-    // Update local Dexie database tables with cloud records
+    // Update local Dexie database tables with cloud records using upsert (.bulkPut)
     await db.transaction('rw', [db.accounts, db.categories, db.transactions, db.people], async () => {
-      await db.accounts.clear();
-      await db.categories.clear();
-      await db.transactions.clear();
-      await db.people.clear();
-
-      if (mappedAccounts.length > 0) await db.accounts.bulkAdd(mappedAccounts);
-      if (mappedCategories.length > 0) await db.categories.bulkAdd(mappedCategories);
-      if (mappedTransactions.length > 0) await db.transactions.bulkAdd(mappedTransactions);
-      if (mappedPeople.length > 0) await db.people.bulkAdd(mappedPeople);
+      if (mappedAccounts.length > 0) await db.accounts.bulkPut(mappedAccounts);
+      if (mappedCategories.length > 0) await db.categories.bulkPut(mappedCategories);
+      if (mappedTransactions.length > 0) await db.transactions.bulkPut(mappedTransactions);
+      if (mappedPeople.length > 0) await db.people.bulkPut(mappedPeople);
     });
 
     console.log(`Cloud sync completed: ${mappedAccounts.length} accounts, ${mappedTransactions.length} transactions, ${mappedCategories.length} categories, ${mappedPeople.length} people.`);

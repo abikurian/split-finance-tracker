@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isSyncing: boolean;
+  isInitialSyncing: boolean;
   signOut: () => Promise<{ error: Error | null }>;
 }
 
@@ -18,9 +19,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
 
   useEffect(() => {
     let mounted = true;
+    let initialSyncDone = false;
 
     const initAuth = async () => {
       try {
@@ -34,7 +37,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (activeUser) {
             setIsSyncing(true);
             await syncFromSupabase(activeUser.id);
-            if (mounted) setIsSyncing(false);
+            if (mounted) {
+              setIsSyncing(false);
+              setIsInitialSyncing(false);
+              initialSyncDone = true;
+            }
+          } else {
+            setIsInitialSyncing(false);
+            initialSyncDone = true;
           }
         }
       } catch (err) {
@@ -42,6 +52,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Error fetching session:', err);
           setLoading(false);
           setIsSyncing(false);
+          setIsInitialSyncing(false);
+          initialSyncDone = true;
         }
       }
     };
@@ -59,11 +71,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
 
         if (activeUser) {
-          setIsSyncing(true);
-          await syncFromSupabase(activeUser.id);
-          if (mounted) setIsSyncing(false);
+          if (!initialSyncDone) {
+            setIsSyncing(true);
+            await syncFromSupabase(activeUser.id);
+            if (mounted) {
+              setIsSyncing(false);
+              setIsInitialSyncing(false);
+              initialSyncDone = true;
+            }
+          } else {
+            // Background sync (non-blocking)
+            setIsSyncing(true);
+            syncFromSupabase(activeUser.id).finally(() => {
+              if (mounted) setIsSyncing(false);
+            });
+          }
         } else {
           setIsSyncing(false);
+          setIsInitialSyncing(false);
         }
       }
     });
@@ -88,11 +113,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(null);
       setLoading(false);
       setIsSyncing(false);
+      setIsInitialSyncing(false);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isSyncing, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, isSyncing, isInitialSyncing, signOut }}>
       {children}
     </AuthContext.Provider>
   );
