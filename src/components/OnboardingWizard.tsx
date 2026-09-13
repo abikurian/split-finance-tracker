@@ -13,8 +13,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/schema';
 import { rupeesToPaise } from '../utils/formatters';
 import { LedgerEngine } from '../lib/ledger/ledgerEngine';
-import { pushAccountToSupabase, pushCategoryToSupabase } from '../lib/supabaseSync';
 import type { Category } from '../types';
+import { supabase } from '../lib/supabase';
 
 const DEFAULT_EXPENSE_CATEGORIES: Omit<Category, 'createdAt' | 'updatedAt'>[] = [
   { id: 'cat-food', name: 'Food & Dining', icon: 'Utensils', type: 'expense', isCustom: false, sortOrder: 1 },
@@ -80,33 +80,117 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
 
     try {
       const timestamp = new Date().toISOString();
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData.user?.id;
 
-      // 1. Seed Categories if empty
-      const existingCategories = await db.categories.count();
-      if (existingCategories === 0) {
-        await db.categories.bulkAdd([
-          ...DEFAULT_EXPENSE_CATEGORIES.map((c) => ({
-            ...c,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          })),
-          ...DEFAULT_INCOME_CATEGORIES.map((c) => ({
-            ...c,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          })),
-        ]);
+      if (!userId) {
+        throw new Error('User authentication session not found. Please log in again.');
       }
 
-      // 2. Create Primary Account in Dexie
+      // Prepare Category payloads
+      const categoriesPayload = [
+        ...DEFAULT_EXPENSE_CATEGORIES,
+        ...DEFAULT_INCOME_CATEGORIES,
+      ].map(c => ({
+        id: c.id,
+        user_id: userId,
+        name: c.name,
+        icon: c.icon,
+        type: c.type,
+        is_custom: c.isCustom,
+        isCustom: c.isCustom,
+        sort_order: c.sortOrder,
+        sortOrder: c.sortOrder,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }));
+
+      // Prepare Primary Account payload
       const primaryId = uuidv4();
       const primaryPaise = rupeesToPaise(parseFloat(primaryBalance) || 0);
 
+      const accountsPayload: any[] = [
+        {
+          id: primaryId,
+          user_id: userId,
+          name: primaryName.trim(),
+          type: 'bank',
+          balance_in_paise: primaryPaise,
+          balanceInPaise: primaryPaise,
+          currency: 'INR',
+          icon: 'Landmark',
+          description: 'Primary Spending Account',
+          is_primary_spending: true,
+          isPrimarySpending: true,
+          is_savings: false,
+          isSavings: false,
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+      ];
+
+      // Prepare Savings Account payload if applicable
+      let savingsId: string | null = null;
+      let savingsPaise = 0;
+      if (hasSavings) {
+        savingsId = uuidv4();
+        savingsPaise = rupeesToPaise(parseFloat(savingsBalance) || 0);
+        accountsPayload.push({
+          id: savingsId,
+          user_id: userId,
+          name: savingsName.trim(),
+          type: 'savings',
+          balance_in_paise: savingsPaise,
+          balanceInPaise: savingsPaise,
+          currency: 'INR',
+          icon: 'PiggyBank',
+          description: 'Savings & Contingency Fund',
+          is_primary_spending: false,
+          isPrimarySpending: false,
+          is_savings: true,
+          isSavings: true,
+          created_at: timestamp,
+          updated_at: timestamp,
+        });
+      }
+
+      // --- EXECUTE & AWAIT SUPABASE INSERTS FIRST ---
+      const { error: catErr } = await supabase.from('categories').upsert(categoriesPayload);
+      if (catErr) {
+        console.error('Supabase Onboarding Categories Error:', catErr.code, catErr.message, catErr.details);
+        setError(`Cloud Setup Failed [Code ${catErr.code || 'RLS'}]: ${catErr.message}`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      const { error: accErr } = await supabase.from('accounts').upsert(accountsPayload);
+      if (accErr) {
+        console.error('Supabase Onboarding Accounts Error:', accErr.code, accErr.message, accErr.details);
+        setError(`Cloud Setup Failed [Code ${accErr.code || 'RLS'}]: ${accErr.message}`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // --- NOW WRITE TO LOCAL DEXIE DB ---
+      await db.categories.bulkPut(
+        categoriesPayload.map(c => ({
+          id: c.id,
+          name: c.name,
+          icon: c.icon,
+          type: c.type as any,
+          isCustom: c.isCustom,
+          sortOrder: c.sortOrder,
+          createdAt: c.created_at,
+          updatedAt: c.updated_at,
+        }))
+      );
+
+      // Create primary account in Dexie
       await db.accounts.add({
         id: primaryId,
         name: primaryName.trim(),
         type: 'bank',
-        balanceInPaise: 0, // Balance set to 0 initially, then backed by transaction
+        balanceInPaise: 0,
         currency: 'INR',
         icon: 'Landmark',
         description: 'Primary Spending Account',
@@ -117,7 +201,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
         updatedAt: timestamp,
       });
 
-      // Log balance_adjustment transaction if starting balance > 0
       if (primaryPaise > 0) {
         await LedgerEngine.adjustAccountBalance({
           accountId: primaryId,
@@ -127,11 +210,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
         });
       }
 
-      // 3. Create Savings Account if enabled
-      if (hasSavings) {
-        const savingsId = uuidv4();
-        const savingsPaise = rupeesToPaise(parseFloat(savingsBalance) || 0);
-
+      if (hasSavings && savingsId) {
         await db.accounts.add({
           id: savingsId,
           name: savingsName.trim(),
@@ -155,18 +234,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
             note: 'Initial savings balance',
           });
         }
-      }
-
-      // 4. Push newly created accounts and categories to Supabase Cloud
-      const allCategories = await db.categories.toArray();
-      const allAccounts = await db.accounts.toArray();
-
-      for (const cat of allCategories) {
-        pushCategoryToSupabase(cat).catch(console.error);
-      }
-
-      for (const acc of allAccounts) {
-        pushAccountToSupabase(acc).catch(console.error);
       }
 
       if (onComplete) {

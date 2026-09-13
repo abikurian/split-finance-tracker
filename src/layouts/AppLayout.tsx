@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import React, { useState, useEffect } from 'react';
 import {
   Home,
   Receipt,
@@ -22,6 +21,11 @@ import {
   formatTimeframeLabel,
   navigateTimeframe,
 } from '../utils/dateUtils';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+import { syncFromSupabase } from '../lib/supabaseSync';
+
+import { DotsRing } from '../components/loading-ui/dots-ring';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -49,13 +53,75 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   selectedYear,
   setSelectedYear,
 }) => {
+  const { user } = useAuth();
   const [isQuickAddOpen, setIsQuickAddOpen] = useState<boolean>(false);
   const [isBackupOpen, setIsBackupOpen] = useState<boolean>(false);
+  const [isCloudInitializing, setIsCloudInitializing] = useState<boolean>(true);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
 
-  const accounts = useLiveQuery(() => db.accounts.filter(a => !a.deletedAt).toArray(), []);
+  useEffect(() => {
+    let isMounted = true;
 
-  if (accounts !== undefined && accounts.length === 0) {
-    return <OnboardingWizard />;
+    async function initCloudSequence() {
+      if (!user) {
+        if (isMounted) {
+          setIsCloudInitializing(false);
+          setShowOnboarding(false);
+        }
+        return;
+      }
+
+      try {
+        setIsCloudInitializing(true);
+
+        // Directly query Supabase accounts table for the current user
+        const { data: cloudAccounts, error: accountsErr } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (accountsErr) {
+          console.error('Error querying Supabase accounts on boot:', accountsErr.code, accountsErr.message);
+        }
+
+        // Perform full cloud sync into Dexie via .bulkPut()
+        await syncFromSupabase(user.id);
+
+        if (isMounted) {
+          if (cloudAccounts && cloudAccounts.length > 0) {
+            setShowOnboarding(false);
+          } else {
+            const dexieCount = await db.accounts.count();
+            setShowOnboarding(dexieCount === 0);
+          }
+          setIsCloudInitializing(false);
+        }
+      } catch (err) {
+        console.error('Failed cloud-first initialization:', err);
+        if (isMounted) {
+          const dexieCount = await db.accounts.count();
+          setShowOnboarding(dexieCount === 0);
+          setIsCloudInitializing(false);
+        }
+      }
+    }
+
+    initCloudSequence();
+  }, [user?.id]);
+
+  if (isCloudInitializing) {
+    return (
+      <div className="flex h-screen w-full flex-col gap-4 items-center justify-center bg-white">
+        <div className="w-12 h-12 flex items-center justify-center text-black">
+          <DotsRing />
+        </div>
+        <div className="text-black text-sm tracking-wide">Syncing with cloud...</div>
+      </div>
+    );
+  }
+
+  if (showOnboarding) {
+    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />;
   }
 
   const handleNavigateDate = (direction: 'prev' | 'next') => {

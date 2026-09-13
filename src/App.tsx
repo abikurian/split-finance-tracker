@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { AuthPage } from './pages/AuthPage';
 import { AppLayout } from './layouts/AppLayout';
@@ -12,6 +11,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { QuickAddModal } from './components/modals/QuickAddModal';
 import { BackupModal } from './components/modals/BackupModal';
 import type { TimeframeMode } from './utils/dateUtils';
+
+import { DotsRing } from './components/loading-ui/dots-ring';
 
 function AuthenticatedApp() {
   const { user, loading, isInitialSyncing } = useAuth();
@@ -32,11 +33,13 @@ function AuthenticatedApp() {
 
   if (loading || isInitialSyncing) {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center p-4">
-        <Loader2 className="w-8 h-8 text-[var(--accent)] animate-spin mb-2" />
-        <p className="text-xs font-semibold text-[var(--text-secondary)]">
-          {loading ? 'Checking authentication...' : 'Syncing data with cloud...'}
-        </p>
+      <div className="flex h-screen w-full flex-col gap-4 items-center justify-center bg-white">
+        <div className="w-12 h-12 flex items-center justify-center text-black">
+          <DotsRing />
+        </div>
+        <div className="text-black text-sm tracking-wide">
+          {loading ? 'Checking authentication...' : 'Syncing with cloud...'}
+        </div>
       </div>
     );
   }
