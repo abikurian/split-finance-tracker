@@ -8,6 +8,11 @@ import type {
   MonthlyFinancialSummary,
   SplitParticipant,
 } from '../../types';
+import {
+  pushTransactionToSupabase,
+  pushAccountToSupabase,
+  pushPersonToSupabase,
+} from '../supabaseSync';
 
 // Helper to get ISO string for current date/time
 const nowISO = () => new Date().toISOString();
@@ -34,7 +39,7 @@ export class LedgerEngine {
   }): Promise<Transaction> {
     const opId = params.operationId || uuidv4();
 
-    return await db.transaction(
+    const txResult = await db.transaction(
       'rw',
       [db.accounts, db.transactions, db.ledgerEntries],
       async () => {
@@ -96,6 +101,14 @@ export class LedgerEngine {
         return tx;
       }
     );
+
+    // Sync with Supabase Cloud
+    pushTransactionToSupabase(txResult).catch(console.error);
+    db.accounts.get(params.accountId).then((acc) => {
+      if (acc) pushAccountToSupabase(acc).catch(console.error);
+    });
+
+    return txResult;
   }
 
   /**
@@ -112,7 +125,7 @@ export class LedgerEngine {
   }): Promise<Transaction> {
     const opId = params.operationId || uuidv4();
 
-    return await db.transaction(
+    const txResult = await db.transaction(
       'rw',
       [db.accounts, db.transactions, db.ledgerEntries],
       async () => {
@@ -175,6 +188,14 @@ export class LedgerEngine {
         return tx;
       }
     );
+
+    // Sync with Supabase Cloud
+    pushTransactionToSupabase(txResult).catch(console.error);
+    db.accounts.get(params.accountId).then((acc) => {
+      if (acc) pushAccountToSupabase(acc).catch(console.error);
+    });
+
+    return txResult;
   }
 
   /**
@@ -195,7 +216,7 @@ export class LedgerEngine {
 
     const opId = params.operationId || uuidv4();
 
-    return await db.transaction(
+    const txResult = await db.transaction(
       'rw',
       [db.accounts, db.transactions, db.ledgerEntries],
       async () => {
@@ -268,6 +289,17 @@ export class LedgerEngine {
         return tx;
       }
     );
+
+    // Sync with Supabase Cloud
+    pushTransactionToSupabase(txResult).catch(console.error);
+    db.accounts.get(params.sourceAccountId).then((acc) => {
+      if (acc) pushAccountToSupabase(acc).catch(console.error);
+    });
+    db.accounts.get(params.destinationAccountId).then((acc) => {
+      if (acc) pushAccountToSupabase(acc).catch(console.error);
+    });
+
+    return txResult;
   }
 
   /**
@@ -283,7 +315,7 @@ export class LedgerEngine {
   }): Promise<Transaction> {
     const opId = params.operationId || uuidv4();
 
-    return await db.transaction(
+    const txResult = await db.transaction(
       'rw',
       [db.accounts, db.transactions, db.ledgerEntries, db.people, db.debts],
       async () => {
@@ -367,6 +399,17 @@ export class LedgerEngine {
         return tx;
       }
     );
+
+    // Sync with Supabase Cloud
+    pushTransactionToSupabase(txResult).catch(console.error);
+    db.accounts.get(params.accountId).then((acc) => {
+      if (acc) pushAccountToSupabase(acc).catch(console.error);
+    });
+    db.people.get(params.friendId).then((p) => {
+      if (p) pushPersonToSupabase(p).catch(console.error);
+    });
+
+    return txResult;
   }
 
   /**
@@ -382,7 +425,7 @@ export class LedgerEngine {
   }): Promise<Transaction> {
     const opId = params.operationId || uuidv4();
 
-    return await db.transaction(
+    const txResult = await db.transaction(
       'rw',
       [db.accounts, db.transactions, db.ledgerEntries, db.people, db.debts],
       async () => {
@@ -466,6 +509,17 @@ export class LedgerEngine {
         return tx;
       }
     );
+
+    // Sync with Supabase Cloud
+    pushTransactionToSupabase(txResult).catch(console.error);
+    db.accounts.get(params.accountId).then((acc) => {
+      if (acc) pushAccountToSupabase(acc).catch(console.error);
+    });
+    db.people.get(params.friendId).then((p) => {
+      if (p) pushPersonToSupabase(p).catch(console.error);
+    });
+
+    return txResult;
   }
 
   /**
@@ -482,7 +536,7 @@ export class LedgerEngine {
   }): Promise<Transaction> {
     const opId = params.operationId || uuidv4();
 
-    return await db.transaction(
+    const txResult = await db.transaction(
       'rw',
       [db.accounts, db.transactions, db.ledgerEntries, db.people, db.debts],
       async () => {
@@ -590,6 +644,17 @@ export class LedgerEngine {
         return tx;
       }
     );
+
+    // Sync with Supabase Cloud
+    pushTransactionToSupabase(txResult).catch(console.error);
+    db.accounts.get(params.accountId).then((acc) => {
+      if (acc) pushAccountToSupabase(acc).catch(console.error);
+    });
+    db.people.get(params.friendId).then((p) => {
+      if (p) pushPersonToSupabase(p).catch(console.error);
+    });
+
+    return txResult;
   }
 
   /**
@@ -849,7 +914,7 @@ export class LedgerEngine {
   }): Promise<Transaction> {
     const opId = params.operationId || uuidv4();
 
-    return await db.transaction(
+    const txResult = await db.transaction(
       'rw',
       [db.accounts, db.transactions, db.ledgerEntries],
       async () => {
@@ -913,6 +978,14 @@ export class LedgerEngine {
         return tx;
       }
     );
+
+    // Sync with Supabase Cloud
+    pushTransactionToSupabase(txResult).catch(console.error);
+    db.accounts.get(params.accountId).then((acc) => {
+      if (acc) pushAccountToSupabase(acc).catch(console.error);
+    });
+
+    return txResult;
   }
 
   /**

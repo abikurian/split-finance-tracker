@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { syncFromSupabase } from '../lib/supabaseSync';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isSyncing: boolean;
   signOut: () => Promise<{ error: Error | null }>;
 }
 
@@ -15,32 +17,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   useEffect(() => {
     let mounted = true;
 
-    // Fetch active session on startup
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+          setSession(session);
+          const activeUser = session?.user ?? null;
+          setUser(activeUser);
+          setLoading(false);
+
+          if (activeUser) {
+            setIsSyncing(true);
+            await syncFromSupabase(activeUser.id);
+            if (mounted) setIsSyncing(false);
+          }
+        }
+      } catch (err) {
+        if (mounted) {
+          console.error('Error fetching session:', err);
+          setLoading(false);
+          setIsSyncing(false);
+        }
       }
-    }).catch((err) => {
-      if (mounted) {
-        console.error('Error fetching session:', err);
-        setLoading(false);
-      }
-    });
+    };
+
+    initAuth();
 
     // Listen to real-time auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (mounted) {
         setSession(session);
-        setUser(session?.user ?? null);
+        const activeUser = session?.user ?? null;
+        setUser(activeUser);
         setLoading(false);
+
+        if (activeUser) {
+          setIsSyncing(true);
+          await syncFromSupabase(activeUser.id);
+          if (mounted) setIsSyncing(false);
+        } else {
+          setIsSyncing(false);
+        }
       }
     });
 
@@ -63,11 +87,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setSession(null);
       setLoading(false);
+      setIsSyncing(false);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, isSyncing, signOut }}>
       {children}
     </AuthContext.Provider>
   );

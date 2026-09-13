@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/schema';
 import { rupeesToPaise } from '../utils/formatters';
 import { LedgerEngine } from '../lib/ledger/ledgerEngine';
+import { pushAccountToSupabase, pushCategoryToSupabase } from '../lib/supabaseSync';
 import type { Category } from '../types';
 
 const DEFAULT_EXPENSE_CATEGORIES: Omit<Category, 'createdAt' | 'updatedAt'>[] = [
@@ -154,6 +155,18 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
             note: 'Initial savings balance',
           });
         }
+      }
+
+      // 4. Push newly created accounts and categories to Supabase Cloud
+      const allCategories = await db.categories.toArray();
+      const allAccounts = await db.accounts.toArray();
+
+      for (const cat of allCategories) {
+        pushCategoryToSupabase(cat).catch(console.error);
+      }
+
+      for (const acc of allAccounts) {
+        pushAccountToSupabase(acc).catch(console.error);
       }
 
       if (onComplete) {

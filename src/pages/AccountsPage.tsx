@@ -8,6 +8,8 @@ import type { Account, AccountType } from '../types';
 import { AdjustBalanceModal } from '../components/modals/AdjustBalanceModal';
 import { QuickAddModal } from '../components/modals/QuickAddModal';
 
+import { pushAccountToSupabase } from '../lib/supabaseSync';
+
 interface AccountsPageProps {
   onOpenQuickAdd: (defaultTab?: 'expense' | 'income' | 'transfer' | 'friend') => void;
 }
@@ -55,6 +57,8 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({ onOpenQuickAdd }) =>
     };
 
     await db.accounts.add(newAccount);
+    pushAccountToSupabase(newAccount).catch(console.error);
+
     setName('');
     setBalance('');
     setIsAddAccountOpen(false);

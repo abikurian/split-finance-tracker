@@ -7,6 +7,8 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Person } from '../types';
 import { FriendDetailModal } from '../components/modals/FriendDetailModal';
 
+import { pushPersonToSupabase } from '../lib/supabaseSync';
+
 interface FriendsPageProps {
   onOpenQuickAdd: (defaultTab?: 'expense' | 'income' | 'transfer' | 'friend', isFriendContext?: boolean) => void;
 }
@@ -31,13 +33,15 @@ export const FriendsPage: React.FC<FriendsPageProps> = ({ onOpenQuickAdd }) => {
     if (!newFriendName.trim()) return;
 
     const now = new Date().toISOString();
-    await db.people.add({
+    const newPerson: Person = {
       id: uuidv4(),
       name: newFriendName.trim(),
       netBalanceInPaise: 0,
       createdAt: now,
       updatedAt: now,
-    });
+    };
+    await db.people.add(newPerson);
+    pushPersonToSupabase(newPerson).catch(console.error);
 
     setNewFriendName('');
     setIsAddFriendOpen(false);

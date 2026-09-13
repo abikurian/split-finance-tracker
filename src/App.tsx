@@ -14,7 +14,7 @@ import { BackupModal } from './components/modals/BackupModal';
 import type { TimeframeMode } from './utils/dateUtils';
 
 function AuthenticatedApp() {
-  const { user, loading } = useAuth();
+  const { user, loading, isSyncing } = useAuth();
 
   const [activeTab, setActiveTab] = useState<string>('home');
 
@@ -30,11 +30,13 @@ function AuthenticatedApp() {
   const [isQuickAddFriendContextOnly, setIsQuickAddFriendContextOnly] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
 
-  if (loading) {
+  if (loading || isSyncing) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center p-4">
         <Loader2 className="w-8 h-8 text-[var(--accent)] animate-spin mb-2" />
-        <p className="text-xs font-semibold text-[var(--text-secondary)]">Checking authentication...</p>
+        <p className="text-xs font-semibold text-[var(--text-secondary)]">
+          {loading ? 'Checking authentication...' : 'Syncing data with cloud...'}
+        </p>
       </div>
     );
   }
