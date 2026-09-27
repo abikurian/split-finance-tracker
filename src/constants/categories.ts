@@ -28,7 +28,7 @@ export function getDefaultCategoriesPayload(userId: string, timestamp = new Date
   }
 
   return [...DEFAULT_EXPENSE_CATEGORIES, ...DEFAULT_INCOME_CATEGORIES].map(c => ({
-    id: c.id,
+    id: `${userId}_${c.id}`,
     user_id: userId,
     name: c.name,
     icon: c.icon,

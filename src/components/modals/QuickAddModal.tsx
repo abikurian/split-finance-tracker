@@ -70,7 +70,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   // Set default category
   useEffect(() => {
     if (categories && categories.length > 0 && !categoryId) {
-      const foodCat = categories.find(c => c.id === 'cat-food') || categories[0];
+      const foodCat = categories.find(c => c.id.endsWith('cat-food') || c.id === 'cat-food' || c.name === 'Food & Dining') || categories[0];
       setCategoryId(foodCat.id);
     }
   }, [categories, categoryId]);

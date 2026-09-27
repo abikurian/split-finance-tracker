@@ -73,14 +73,14 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
         throw new Error('User authentication session not found (user.id is undefined). Please log in again.');
       }
 
-      // 2. Force exact categories payload mapping with user_id
+      // 2. Force exact categories payload mapping with user_id & user-scoped ID
       const defaultCategories = [
         ...DEFAULT_EXPENSE_CATEGORIES,
         ...DEFAULT_INCOME_CATEGORIES,
       ];
 
       const categoriesPayload = defaultCategories.map((category) => ({
-        id: category.id,
+        id: `${currentUserId}_${category.id}`,
         user_id: currentUserId,
         name: category.name,
         icon: category.icon,
@@ -90,6 +90,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
         created_at: timestamp,
         updated_at: timestamp,
       }));
+
+      // --- INJECT AGGRESSIVE DIAGNOSTICS LOGS ---
+      console.log("--- ONBOARDING SUBMIT DIAGNOSTICS ---");
+      console.log("1. Current User ID:", currentUserId);
+      console.log("2. Categories Payload:", JSON.stringify(categoriesPayload, null, 2));
+      console.log("3. Is user_id present in first category?", !!categoriesPayload[0]?.user_id);
 
       // 3. Force exact accounts payload mapping with user_id
       const primaryId = uuidv4();
