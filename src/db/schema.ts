@@ -32,7 +32,7 @@ export class StudentFinanceDatabase extends Dexie {
     // Version 1 Schema Definition
     this.version(1).stores({
       accounts: 'id, name, type, isPrimarySpending, isSavings, syncStatus, deletedAt',
-      categories: 'id, name, type, sortOrder',
+      categories: 'id, user_id, name, type, sortOrder',
       transactions: 'id, &operationId, type, date, accountId, categoryId, friendId, deletedAt',
       ledgerEntries: 'id, transactionId, operationId, accountId, entityType, entityId',
       people: 'id, name, deletedAt',

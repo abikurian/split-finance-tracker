@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { db } from '../db/schema';
 import type { Account, Category, Transaction, Person } from '../types';
+import { getDefaultCategoriesPayload } from '../constants/categories';
 
 /**
  * Get active Supabase User ID
@@ -79,8 +80,9 @@ export async function syncFromSupabase(userId: string): Promise<void> {
       deletedAt: row.deleted_at || row.deletedAt || null,
     }));
 
-    const mappedCategories: Category[] = (categoriesData || []).map((row: any) => ({
+    let mappedCategories: Category[] = (categoriesData || []).map((row: any) => ({
       id: row.id,
+      user_id: row.user_id || userId,
       name: row.name,
       icon: row.icon || 'Tag',
       type: row.type || 'expense',
@@ -89,6 +91,54 @@ export async function syncFromSupabase(userId: string): Promise<void> {
       createdAt: row.created_at || row.createdAt || new Date().toISOString(),
       updatedAt: row.updated_at || row.updatedAt || new Date().toISOString(),
     }));
+
+    // Safeguard: If user has 0 categories in Supabase, seed default categories for this user
+    if (mappedCategories.length === 0 && userId) {
+      const localCategories = await db.categories.toArray();
+      if (localCategories.length > 0) {
+        const payloadToPush = localCategories.map(cat => ({
+          id: cat.id,
+          user_id: userId,
+          name: cat.name,
+          icon: cat.icon,
+          type: cat.type,
+          is_custom: cat.isCustom,
+          isCustom: cat.isCustom,
+          sort_order: cat.sortOrder,
+          sortOrder: cat.sortOrder,
+          created_at: cat.createdAt,
+          updated_at: cat.updatedAt,
+        }));
+
+        const { error: seedErr } = await supabase.from('categories').upsert(payloadToPush);
+        if (seedErr) {
+          console.error('Error syncing local categories to Supabase:', seedErr.message);
+        } else {
+          mappedCategories = localCategories.map(cat => ({
+            ...cat,
+            user_id: userId,
+          }));
+        }
+      } else {
+        const defaultPayload = getDefaultCategoriesPayload(userId);
+        const { error: seedErr } = await supabase.from('categories').upsert(defaultPayload);
+        if (seedErr) {
+          console.error('Error seeding default categories to Supabase:', seedErr.message);
+        } else {
+          mappedCategories = defaultPayload.map(c => ({
+            id: c.id,
+            user_id: userId,
+            name: c.name,
+            icon: c.icon,
+            type: c.type as any,
+            isCustom: c.isCustom,
+            sortOrder: c.sortOrder,
+            createdAt: c.created_at,
+            updatedAt: c.updated_at,
+          }));
+        }
+      }
+    }
 
     const mappedTransactions: Transaction[] = (transactionsData || []).map((row: any) => ({
       id: row.id,
@@ -173,8 +223,11 @@ export async function pushAccountToSupabase(account: Account, userId?: string): 
  * Persist Category record to Supabase
  */
 export async function pushCategoryToSupabase(category: Category, userId?: string): Promise<void> {
-  const uid = userId || (await getActiveUserId());
-  if (!uid) return;
+  const uid = userId || category.user_id || (await getActiveUserId());
+  if (!uid) {
+    console.warn('Cannot push category to Supabase: user_id is missing or undefined.');
+    return;
+  }
 
   try {
     const payload = {
@@ -197,6 +250,42 @@ export async function pushCategoryToSupabase(category: Category, userId?: string
     }
   } catch (err) {
     console.error('Error pushing category to Supabase:', err);
+  }
+}
+
+/**
+ * Bulk persist Category records to Supabase
+ */
+export async function pushCategoriesToSupabase(categories: Category[], userId?: string): Promise<void> {
+  const uid = userId || (await getActiveUserId());
+  if (!uid) {
+    console.warn('Cannot push categories to Supabase: user_id is missing or undefined.');
+    return;
+  }
+
+  if (!categories || categories.length === 0) return;
+
+  try {
+    const payload = categories.map(category => ({
+      id: category.id,
+      user_id: category.user_id || uid,
+      name: category.name,
+      icon: category.icon,
+      type: category.type,
+      is_custom: category.isCustom,
+      isCustom: category.isCustom,
+      sort_order: category.sortOrder,
+      sortOrder: category.sortOrder,
+      created_at: category.createdAt,
+      updated_at: category.updatedAt,
+    }));
+
+    const { error } = await supabase.from('categories').upsert(payload);
+    if (error) {
+      console.warn('Supabase categories bulk push warning:', error.message);
+    }
+  } catch (err) {
+    console.error('Error pushing categories to Supabase:', err);
   }
 }
 

@@ -13,36 +13,19 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/schema';
 import { rupeesToPaise } from '../utils/formatters';
 import { LedgerEngine } from '../lib/ledger/ledgerEngine';
-import type { Category } from '../types';
 import { supabase } from '../lib/supabase';
-
-const DEFAULT_EXPENSE_CATEGORIES: Omit<Category, 'createdAt' | 'updatedAt'>[] = [
-  { id: 'cat-food', name: 'Food & Dining', icon: 'Utensils', type: 'expense', isCustom: false, sortOrder: 1 },
-  { id: 'cat-groceries', name: 'Groceries', icon: 'ShoppingCart', type: 'expense', isCustom: false, sortOrder: 2 },
-  { id: 'cat-travel', name: 'Travel & Cab', icon: 'Car', type: 'expense', isCustom: false, sortOrder: 3 },
-  { id: 'cat-shopping', name: 'Shopping', icon: 'ShoppingBag', type: 'expense', isCustom: false, sortOrder: 4 },
-  { id: 'cat-entertainment', name: 'Entertainment', icon: 'Film', type: 'expense', isCustom: false, sortOrder: 5 },
-  { id: 'cat-recharge', name: 'Recharge & Data', icon: 'Smartphone', type: 'expense', isCustom: false, sortOrder: 6 },
-  { id: 'cat-bills', name: 'Bills & Utilities', icon: 'Zap', type: 'expense', isCustom: false, sortOrder: 7 },
-  { id: 'cat-education', name: 'Education & Books', icon: 'BookOpen', type: 'expense', isCustom: false, sortOrder: 8 },
-  { id: 'cat-health', name: 'Health & Fitness', icon: 'Activity', type: 'expense', isCustom: false, sortOrder: 9 },
-  { id: 'cat-personal', name: 'Personal Care', icon: 'User', type: 'expense', isCustom: false, sortOrder: 10 },
-  { id: 'cat-work', name: 'Work & Tools', icon: 'Briefcase', type: 'expense', isCustom: false, sortOrder: 11 },
-  { id: 'cat-other', name: 'Other', icon: 'MoreHorizontal', type: 'expense', isCustom: false, sortOrder: 12 },
-];
-
-const DEFAULT_INCOME_CATEGORIES: Omit<Category, 'createdAt' | 'updatedAt'>[] = [
-  { id: 'cat-income-allowance', name: 'Allowance', icon: 'HeartHandshake', type: 'income', isCustom: false, sortOrder: 1 },
-  { id: 'cat-income-freelance', name: 'Freelance', icon: 'Laptop', type: 'income', isCustom: false, sortOrder: 2 },
-  { id: 'cat-income-salary', name: 'Salary / Stipend', icon: 'Building', type: 'income', isCustom: false, sortOrder: 3 },
-  { id: 'cat-income-other', name: 'Gifts & Other', icon: 'Gift', type: 'income', isCustom: false, sortOrder: 4 },
-];
+import { useAuth } from '../hooks/useAuth';
+import {
+  DEFAULT_EXPENSE_CATEGORIES,
+  DEFAULT_INCOME_CATEGORIES,
+} from '../constants/categories';
 
 interface OnboardingWizardProps {
   onComplete?: () => void;
 }
 
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }) => {
+  const { user } = useAuth();
   const [step, setStep] = useState<1 | 2>(1);
 
   // Step 1 State: Primary Account
@@ -80,27 +63,24 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
 
     try {
       const timestamp = new Date().toISOString();
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData.user?.id;
+      const activeUser = user || (await supabase.auth.getUser()).data.user;
+      const userId = activeUser?.id;
 
       if (!userId) {
-        throw new Error('User authentication session not found. Please log in again.');
+        throw new Error('User authentication session not found (user.id is undefined). Please log in again.');
       }
 
-      // Prepare Category payloads
-      const categoriesPayload = [
+      // Explicitly map over default categories array and inject user_id: userId into every category object
+      const defaultCategories = [
         ...DEFAULT_EXPENSE_CATEGORIES,
         ...DEFAULT_INCOME_CATEGORIES,
-      ].map(c => ({
-        id: c.id,
+      ];
+
+      const categoriesPayload = defaultCategories.map((cat) => ({
+        ...cat,
         user_id: userId,
-        name: c.name,
-        icon: c.icon,
-        type: c.type,
-        is_custom: c.isCustom,
-        isCustom: c.isCustom,
-        sort_order: c.sortOrder,
-        sortOrder: c.sortOrder,
+        is_custom: cat.isCustom,
+        sort_order: cat.sortOrder,
         created_at: timestamp,
         updated_at: timestamp,
       }));
@@ -175,6 +155,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
       await db.categories.bulkPut(
         categoriesPayload.map(c => ({
           id: c.id,
+          user_id: userId,
           name: c.name,
           icon: c.icon,
           type: c.type as any,
