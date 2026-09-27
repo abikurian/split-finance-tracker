@@ -34,9 +34,7 @@ export function getDefaultCategoriesPayload(userId: string, timestamp = new Date
     icon: c.icon,
     type: c.type,
     is_custom: c.isCustom,
-    isCustom: c.isCustom,
     sort_order: c.sortOrder,
-    sortOrder: c.sortOrder,
     created_at: timestamp,
     updated_at: timestamp,
   }));

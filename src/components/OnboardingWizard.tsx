@@ -63,104 +63,114 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
 
     try {
       const timestamp = new Date().toISOString();
-      const activeUser = user || (await supabase.auth.getUser()).data.user;
-      const userId = activeUser?.id;
 
-      if (!userId) {
+      // 1. Validate Auth State
+      const sessionRes = await supabase.auth.getSession();
+      const userRes = await supabase.auth.getUser();
+      const currentUserId = user?.id || sessionRes.data.session?.user?.id || userRes.data.user?.id;
+
+      if (!currentUserId) {
         throw new Error('User authentication session not found (user.id is undefined). Please log in again.');
       }
 
-      // Explicitly map over default categories array and inject user_id: userId into every category object
+      // 2. Force exact categories payload mapping with user_id
       const defaultCategories = [
         ...DEFAULT_EXPENSE_CATEGORIES,
         ...DEFAULT_INCOME_CATEGORIES,
       ];
 
-      const categoriesPayload = defaultCategories.map((cat) => ({
-        ...cat,
-        user_id: userId,
-        is_custom: cat.isCustom,
-        sort_order: cat.sortOrder,
+      const categoriesPayload = defaultCategories.map((category) => ({
+        id: category.id,
+        user_id: currentUserId,
+        name: category.name,
+        icon: category.icon,
+        type: category.type,
+        is_custom: category.isCustom,
+        sort_order: category.sortOrder,
         created_at: timestamp,
         updated_at: timestamp,
       }));
 
-      // Prepare Primary Account payload
+      // 3. Force exact accounts payload mapping with user_id
       const primaryId = uuidv4();
       const primaryPaise = rupeesToPaise(parseFloat(primaryBalance) || 0);
 
-      const accountsPayload: any[] = [
+      const accountsRawList = [
         {
           id: primaryId,
-          user_id: userId,
           name: primaryName.trim(),
           type: 'bank',
-          balance_in_paise: primaryPaise,
           balanceInPaise: primaryPaise,
           currency: 'INR',
           icon: 'Landmark',
           description: 'Primary Spending Account',
-          is_primary_spending: true,
           isPrimarySpending: true,
-          is_savings: false,
           isSavings: false,
-          created_at: timestamp,
-          updated_at: timestamp,
         },
       ];
 
-      // Prepare Savings Account payload if applicable
       let savingsId: string | null = null;
       let savingsPaise = 0;
       if (hasSavings) {
         savingsId = uuidv4();
         savingsPaise = rupeesToPaise(parseFloat(savingsBalance) || 0);
-        accountsPayload.push({
+        accountsRawList.push({
           id: savingsId,
-          user_id: userId,
           name: savingsName.trim(),
           type: 'savings',
-          balance_in_paise: savingsPaise,
           balanceInPaise: savingsPaise,
           currency: 'INR',
           icon: 'PiggyBank',
           description: 'Savings & Contingency Fund',
-          is_primary_spending: false,
           isPrimarySpending: false,
-          is_savings: true,
           isSavings: true,
-          created_at: timestamp,
-          updated_at: timestamp,
         });
       }
 
+      const accountsPayload = accountsRawList.map((acc) => ({
+        id: acc.id,
+        user_id: currentUserId,
+        name: acc.name,
+        type: acc.type,
+        balance_in_paise: acc.balanceInPaise,
+        currency: acc.currency,
+        icon: acc.icon,
+        description: acc.description,
+        is_primary_spending: acc.isPrimarySpending,
+        is_savings: acc.isSavings,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }));
+
       // --- EXECUTE & AWAIT SUPABASE INSERTS FIRST ---
-      const { error: catErr } = await supabase.from('categories').upsert(categoriesPayload);
-      if (catErr) {
-        console.error('Supabase Onboarding Categories Error:', catErr.code, catErr.message, catErr.details);
-        setError(`Cloud Setup Failed [Code ${catErr.code || 'RLS'}]: ${catErr.message}`);
-        setIsSubmitting(false);
-        return;
+      const { error: categoryError } = await supabase
+        .from('categories')
+        .upsert(categoriesPayload);
+
+      if (categoryError) {
+        console.error('Category Insert Error:', categoryError);
+        throw new Error(`Category Insert Error [${categoryError.code || '42501'}]: ${categoryError.message}`);
       }
 
-      const { error: accErr } = await supabase.from('accounts').upsert(accountsPayload);
-      if (accErr) {
-        console.error('Supabase Onboarding Accounts Error:', accErr.code, accErr.message, accErr.details);
-        setError(`Cloud Setup Failed [Code ${accErr.code || 'RLS'}]: ${accErr.message}`);
-        setIsSubmitting(false);
-        return;
+      const { error: accountError } = await supabase
+        .from('accounts')
+        .upsert(accountsPayload);
+
+      if (accountError) {
+        console.error('Account Insert Error:', accountError);
+        throw new Error(`Account Insert Error [${accountError.code || '42501'}]: ${accountError.message}`);
       }
 
       // --- NOW WRITE TO LOCAL DEXIE DB ---
       await db.categories.bulkPut(
         categoriesPayload.map(c => ({
           id: c.id,
-          user_id: userId,
+          user_id: currentUserId,
           name: c.name,
           icon: c.icon,
           type: c.type as any,
-          isCustom: c.isCustom,
-          sortOrder: c.sortOrder,
+          isCustom: c.is_custom,
+          sortOrder: c.sort_order,
           createdAt: c.created_at,
           updatedAt: c.updated_at,
         }))

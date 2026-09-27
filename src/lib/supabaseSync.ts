@@ -131,8 +131,8 @@ export async function syncFromSupabase(userId: string): Promise<void> {
             name: c.name,
             icon: c.icon,
             type: c.type as any,
-            isCustom: c.isCustom,
-            sortOrder: c.sortOrder,
+            isCustom: c.is_custom,
+            sortOrder: c.sort_order,
             createdAt: c.created_at,
             updatedAt: c.updated_at,
           }));
